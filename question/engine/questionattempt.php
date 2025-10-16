@@ -1353,7 +1353,8 @@ class question_attempt {
      * @param array $submitteddata the submitted data the determines the action.
      * @param int $timestamp the time to record for the action. (If not given, use now.)
      * @param int $userid the user to attribute the action to. (If not given, use the current user.)
-     * @param int $existingstepid used by the regrade code.
+     * @param int $existingstepid replaces/updates the existing step instead of creating a new one with a new ID. This is used by
+     *                            the regrade code.
      */
     public function process_action($submitteddata, $timestamp = null, $userid = null, $existingstepid = null) {
         $this->ensure_question_initialised();
@@ -1375,11 +1376,13 @@ class question_attempt {
      * @param array $submitteddata the submitted data the determines the action.
      * @param int $timestamp the time to record for the action. (If not given, use now.)
      * @param int $userid the user to attribute the action to. (If not given, use the current user.)
+     * @param int $existingstepid replaces/updates the existing step instead of creating a new one with a new ID. This is used by
+     *                            the regrade code.
      * @return bool whether anything was saved.
      */
-    public function process_autosave($submitteddata, $timestamp = null, $userid = null) {
+    public function process_autosave($submitteddata, $timestamp = null, $userid = null, $existingstepid = null) {
         $this->ensure_question_initialised();
-        $pendingstep = new question_attempt_pending_step($submitteddata, $timestamp, $userid);
+        $pendingstep = new question_attempt_pending_step($submitteddata, $timestamp, $userid, $existingstepid);
         if ($this->behaviour->process_autosave($pendingstep) == self::KEEP) {
             $this->add_autosaved_step($pendingstep);
             return true;
@@ -1446,12 +1449,21 @@ class question_attempt {
 
             } else {
                 // This is the normal case. Replay the next step of the attempt.
+                // The regraded step must keep the same ID, since the response files' item id is the step id.
                 if ($step === $oldqa->autosavedstep) {
-                    $this->process_autosave($step->get_submitted_data(),
-                            $step->get_timecreated(), $step->get_user_id());
+                    $this->process_autosave(
+                        $step->get_submitted_data(),
+                        $step->get_timecreated(),
+                        $step->get_user_id(),
+                        existingstepid: $step->get_id()
+                    );
                 } else {
-                    $this->process_action($step->get_submitted_data(),
-                            $step->get_timecreated(), $step->get_user_id(), $step->get_id());
+                    $this->process_action(
+                        $step->get_submitted_data(),
+                        $step->get_timecreated(),
+                        $step->get_user_id(),
+                        existingstepid: $step->get_id()
+                    );
                 }
             }
         }
